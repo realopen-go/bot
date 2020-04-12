@@ -1,0 +1,13 @@
+# editor
+.idea
+.vscode
+
+# env
+.env
+
+# remote storage
+.realopen-index
+.realopen-data
+
+# binary file
+realopen.go
