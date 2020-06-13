@@ -1,8 +1,12 @@
 package store
 
 import (
-	"github.com/sluggishhackers/realopen.go/models"
+	"github.com/sluggishhackers/go-realopen/models"
 )
+
+func (store *Store) ClearBills() {
+	store.bills = make(map[string]*models.Bill)
+}
 
 func (store *Store) GetBill(ID string) *models.Bill {
 	return store.bills[ID]

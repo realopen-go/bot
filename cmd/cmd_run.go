@@ -4,18 +4,18 @@ import (
 	"github.com/jasonlvhit/gocron"
 	"github.com/spf13/cobra"
 
-	"github.com/sluggishhackers/realopen.go/app"
-	"github.com/sluggishhackers/realopen.go/crawler"
-	"github.com/sluggishhackers/realopen.go/rmtstor"
-	"github.com/sluggishhackers/realopen.go/statmanager"
-	"github.com/sluggishhackers/realopen.go/store"
+	"github.com/sluggishhackers/go-realopen/app"
+	"github.com/sluggishhackers/go-realopen/crawler"
+	"github.com/sluggishhackers/go-realopen/rmtstor"
+	"github.com/sluggishhackers/go-realopen/statusmanager"
+	"github.com/sluggishhackers/go-realopen/store"
 )
 
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run real.open.go.kr",
 	Run: func(cmd *cobra.Command, args []string) {
-		sm := statmanager.New()
+		sm := statusmanager.New()
 		rs := rmtstor.New()
 		store := store.New()
 		c := crawler.New(store, sm)

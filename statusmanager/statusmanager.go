@@ -1,4 +1,4 @@
-package statmanager
+package statusmanager
 
 import (
 	"fmt"
@@ -7,27 +7,31 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/sluggishhackers/realopen.go/models"
-	"github.com/sluggishhackers/realopen.go/rmtstor"
-	"github.com/sluggishhackers/realopen.go/utils/date"
+	"github.com/sluggishhackers/go-realopen/models"
+	"github.com/sluggishhackers/go-realopen/rmtstor"
+	"github.com/sluggishhackers/go-realopen/utils/date"
 	"gopkg.in/yaml.v3"
 )
 
 var statusFilePath string
 
-type Istatmanager interface {
+type Istatusmanager interface {
 	Indexing(map[string]*models.Bill)
 	Initialize()
+	GetBillsToUpdate() []*BillStatus
 	Load()
 	Update()
 	SetFileStatus(string, bool)
 }
 
 type BillStatus struct {
-	BillID     string `yaml:"BILL_ID"`
-	Status     string `yaml:"STATUS"`
-	FileStatus string `yaml:"FILE_STATUS"`
-	Link       string `yaml:"LINK"`
+	BillID          string `yaml:"BILL_ID"`
+	Status          string `yaml:"STATUS"`
+	FileStatus      string `yaml:"FILE_STATUS"`
+	Link            string `yaml:"LINK"`
+	IfrmpPrcsRstrNo string `yaml:"ifrmpPrcsRstrNo"`
+	PrcsDeptNm      string `yaml:"prcsDeptNm"`
+	RqestSj         string `yaml:"rqestSj"`
 }
 
 type IndexFileType struct {
@@ -35,7 +39,7 @@ type IndexFileType struct {
 	Statuses []*BillStatus `yaml:"BILLS"`
 }
 
-type statmanager struct {
+type statusmanager struct {
 	statuses map[string]*BillStatus
 }
 
@@ -59,7 +63,7 @@ func initializeIndexFile() *IndexFileType {
 	}
 }
 
-func (sm *statmanager) Initialize() {
+func (sm *statusmanager) Initialize() {
 	// clean
 	cleanCmd := exec.Command("rm", "-rf", INDEXING_DIR)
 	cleanCmd.Run()
@@ -73,7 +77,7 @@ func (sm *statmanager) Initialize() {
 
 }
 
-func (sm *statmanager) Indexing(bills map[string]*models.Bill) {
+func (sm *statusmanager) Indexing(bills map[string]*models.Bill) {
 	data, err := ioutil.ReadFile(fmt.Sprintf("%s/status.yml", INDEXING_DIR))
 	if err != nil {
 		log.Fatal(err)
@@ -87,8 +91,11 @@ func (sm *statmanager) Indexing(bills map[string]*models.Bill) {
 
 	for _, b := range bills {
 		indexFile.Statuses = append(indexFile.Statuses, &BillStatus{
-			BillID: b.ID,
-			Status: ParseStatus(b.Status, b.Result),
+			BillID:          b.ID,
+			IfrmpPrcsRstrNo: b.IfrmpPrcsRstrNo,
+			Status:          ParseStatus(b.Status, b.Result),
+			PrcsDeptNm:      b.PrcsDeptNm,
+			RqestSj:         b.RqestSj,
 		})
 	}
 
@@ -100,7 +107,17 @@ func (sm *statmanager) Indexing(bills map[string]*models.Bill) {
 	ioutil.WriteFile(statusFilePath, statusYml, 0644)
 }
 
-func (sm *statmanager) Load() {
+func (sm *statusmanager) GetBillsToUpdate() []*BillStatus {
+	var bills []*BillStatus
+	for _, s := range sm.statuses {
+		if s.FileStatus == "" {
+			bills = append(bills, s)
+		}
+	}
+	return bills
+}
+
+func (sm *statusmanager) Load() {
 	data, err := ioutil.ReadFile(fmt.Sprintf("%s/status.yml", INDEXING_DIR))
 	if err != nil {
 		log.Fatal(err)
@@ -117,7 +134,7 @@ func (sm *statmanager) Load() {
 	}
 }
 
-func (sm *statmanager) Update() {
+func (sm *statusmanager) Update() {
 	indexFile := initializeIndexFile()
 
 	for _, s := range sm.statuses {
@@ -132,7 +149,7 @@ func (sm *statmanager) Update() {
 	ioutil.WriteFile(statusFilePath, changed, 0644)
 }
 
-func (sm *statmanager) SetFileStatus(billID string, downloaded bool) {
+func (sm *statusmanager) SetFileStatus(billID string, downloaded bool) {
 	if downloaded {
 		sm.statuses[billID].FileStatus = "DOWNLOADED"
 		sm.statuses[billID].Link = fmt.Sprintf("%s/%s", rmtstor.REALOPEN_DATA_REPOSITORY, billID)
@@ -141,8 +158,8 @@ func (sm *statmanager) SetFileStatus(billID string, downloaded bool) {
 	}
 }
 
-func New() Istatmanager {
-	return &statmanager{
+func New() Istatusmanager {
+	return &statusmanager{
 		statuses: make(map[string]*BillStatus),
 	}
 }

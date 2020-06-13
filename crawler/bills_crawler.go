@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/gocolly/colly"
-	"github.com/sluggishhackers/realopen.go/models"
+	"github.com/sluggishhackers/go-realopen/models"
 )
 
 // https://www.open.go.kr/pa/billing/openBilling/openBillingList.do
@@ -56,6 +56,7 @@ func (c *Crawler) NewBillsCrawler() *colly.Collector {
 		}
 
 		for _, b := range billListResultFormat.Result.List {
+			fmt.Printf("Save the bill from the list: %s\n", b.ID)
 			c.store.SaveBill(b)
 		}
 	})

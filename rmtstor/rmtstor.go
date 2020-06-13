@@ -5,9 +5,12 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
-	"github.com/sluggishhackers/realopen.go/utils/date"
+	"github.com/sluggishhackers/go-realopen/models"
+	"github.com/sluggishhackers/go-realopen/rmtstor/mysql"
+	"github.com/sluggishhackers/go-realopen/utils/date"
 
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -20,17 +23,57 @@ var REALOPEN_INDEX_REPOSITORY string = "https://github.com/sluggishhackers/realo
 var REALOPEN_DATA_REPOSITORY string
 
 type IRemoteStorage interface {
+	CreateBills(bills map[string]*models.Bill)
+	FetchBillsNotOpened() []*mysql.Bill
 	Initialize()
+	SyncFilesRepository()
+	UpdateBills([]*models.Bill)
 	UploadFiles(bool)
-	UploadIndex(bool)
 }
 
 type RemoteStorage struct {
-	auth *http.BasicAuth
+	auth    *http.BasicAuth
+	mysqlDb mysql.IMysql
 }
 
-func (gm *RemoteStorage) Initialize() {
-	fmt.Println("Initialize Remote Storage")
+func (rm *RemoteStorage) createBill(bill *models.Bill) {
+	MemberID := os.Getenv("REALOPEN_MEMBER_ID")
+
+	rm.mysqlDb.CreateBill(&mysql.Bill{
+		BillID:                    bill.ID,
+		Content:                   bill.OppCn,
+		OpenType:                  bill.OppStleSeNm,
+		OpenStatus:                bill.OppSeNm,
+		ProcessorCode:             bill.ChrgDeptCd,
+		ProcessorDepartmentName:   bill.PrcsDeptNm,
+		ProcessorDrafterName:      bill.DrftrNmpn,
+		ProcessorDrafterPosition:  bill.DrftrClsfNm,
+		ProcessorName:             bill.PrcsNstNm,
+		ProcessorRstrNumber:       bill.PrcsRstrNo,
+		ProcessorStsCd:            bill.PrcsStsCd,
+		ProcessorReviewerName:     bill.ChkrNmpn,
+		ProcessorReviewerPosition: bill.ChkrClsfNm,
+		RequestContent:            bill.RqestInfoDtls,
+		RequestDate:               strings.ReplaceAll(bill.RqestPot, ".", "-"),
+		BillTitle:                 bill.RqestSj,
+		UserID:                    MemberID,
+	})
+}
+
+func (rm *RemoteStorage) CreateBills(bills map[string]*models.Bill) {
+	for _, b := range bills {
+		rm.createBill(b)
+	}
+}
+
+func (rm *RemoteStorage) FetchBillsNotOpened() []*mysql.Bill {
+	return rm.mysqlDb.FetchBills("open_status = ?", "")
+}
+
+func (rm *RemoteStorage) Initialize() {
+	// 1. Add a new user to database
+	rm.initializeUser()
+
 	REALOPEN_DATA_REPOSITORY = os.Getenv("REALOPEN_DATA_REPOSITORY_URL")
 
 	wd, err := os.Getwd()
@@ -38,28 +81,14 @@ func (gm *RemoteStorage) Initialize() {
 		log.Fatal(err)
 	}
 
-	indexDir := fmt.Sprintf("%s/%s", wd, REALOPEN_INDEX_DIR)
 	dataDir := fmt.Sprintf("%s/%s", wd, REALOPEN_DATA_DIR)
-
-	cleanIndexDirCmd := exec.Command("rm", "-rf", indexDir)
-	cleanIndexDirCmd.Run()
-
-	_, err = git.PlainClone(indexDir, false, &git.CloneOptions{
-		URL:      REALOPEN_INDEX_REPOSITORY,
-		Auth:     gm.auth,
-		Progress: os.Stdout,
-	})
-	if err != nil {
-		fmt.Errorf("😡 Error to clone REALOPEN_INDEX_REPOSITORY", err)
-		log.Fatal(err)
-	}
 
 	cleanDataDirCmd := exec.Command("rm", "-rf", dataDir)
 	cleanDataDirCmd.Run()
 
 	_, err = git.PlainClone(dataDir, false, &git.CloneOptions{
 		URL:      REALOPEN_DATA_REPOSITORY,
-		Auth:     gm.auth,
+		Auth:     rm.auth,
 		Progress: os.Stdout,
 	})
 	if err != nil {
@@ -68,15 +97,23 @@ func (gm *RemoteStorage) Initialize() {
 	}
 }
 
-func (rm *RemoteStorage) UploadIndex(init bool) {
-	var commitMsg string
-	orgName := os.Getenv("REALOPEN_MEMBER_NAME")
-	if init {
-		commitMsg = fmt.Sprintf("Welcome 🙌🏼 - %s", orgName)
-	} else {
-		commitMsg = fmt.Sprintf("UPDATED(%s) - %s", date.Now().Format(date.DEFAULT_FORMAT), orgName)
-	}
+func (rm *RemoteStorage) initializeUser() *mysql.User {
+	username := os.Getenv("REALOPEN_MEMBER_NAME")
+	memberID := os.Getenv("REALOPEN_MEMBER_ID")
 
+	fmt.Println(username)
+	fmt.Println(memberID)
+	if username == "" {
+		log.Fatal("NO USERNAME")
+	}
+	if memberID == "" {
+		log.Fatal("NO MEMBER ID")
+	}
+	createdUser := rm.mysqlDb.FindOrCreateUser(&mysql.User{ID: memberID, Username: username})
+	return createdUser
+}
+
+func (rm *RemoteStorage) SyncFilesRepository() {
 	r, err := git.PlainOpen(REALOPEN_INDEX_DIR)
 	if err != nil {
 		log.Fatal(err)
@@ -87,45 +124,44 @@ func (rm *RemoteStorage) UploadIndex(init bool) {
 		log.Fatal(err)
 	}
 
-	_, err = w.Add(os.Getenv("REALOPEN_MEMBER_NAME"))
-	if err != nil {
-		fmt.Println("Failed to add")
-		log.Fatal(err)
-	}
-
-	status, err := w.Status()
-	if err != nil {
-		fmt.Println("Failed to status")
-		log.Fatal(err)
-	}
-	fmt.Println(status)
-
-	commit, err := w.Commit(commitMsg, &git.CommitOptions{
-		Author: &object.Signature{
-			Name: rm.auth.Username,
-			When: time.Now(),
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	obj, err := r.CommitObject(commit)
-	if err != nil {
-		fmt.Println("Failed to commit")
-		log.Fatal(err)
-	}
-	fmt.Println(obj)
-
-	err = r.Push(&git.PushOptions{
+	err = w.Pull(&git.PullOptions{
 		Auth:     rm.auth,
 		Progress: os.Stdout,
 	})
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "already up-to-date") {
+		fmt.Println("Failed to git pull - data repository")
 		log.Fatal(err)
 	}
+}
 
-	fmt.Println("Done: Push Index")
+func (rm *RemoteStorage) updateBill(bill *models.Bill) {
+	fmt.Printf("Updated: %s\n", bill.ID)
+
+	rm.mysqlDb.UpdateBill("bill_id = ?", bill.ID, &mysql.Bill{
+		BillID:                    bill.ID,
+		Content:                   "test",
+		OpenType:                  bill.OppStleSeNm,
+		OpenStatus:                bill.OppSeNm,
+		ProcessorCode:             bill.ChrgDeptCd,
+		ProcessorDepartmentName:   bill.PrcsDeptNm,
+		ProcessorDrafterName:      bill.DrftrNmpn,
+		ProcessorDrafterPosition:  bill.DrftrClsfNm,
+		ProcessorName:             bill.PrcsNstNm,
+		ProcessorRstrNumber:       bill.PrcsRstrNo,
+		ProcessorStsCd:            bill.PrcsStsCd,
+		ProcessorReviewerName:     bill.ChkrNmpn,
+		ProcessorReviewerPosition: bill.ChkrClsfNm,
+		RequestContent:            bill.RqestInfoDtls,
+		RequestDate:               strings.ReplaceAll(bill.RqestPot, ".", "-"),
+		BillTitle:                 bill.RqestSj,
+	})
+
+}
+
+func (rm *RemoteStorage) UpdateBills(bills []*models.Bill) {
+	for _, b := range bills {
+		rm.updateBill(b)
+	}
 }
 
 func (rm *RemoteStorage) UploadFiles(init bool) {
@@ -188,10 +224,14 @@ func (rm *RemoteStorage) UploadFiles(init bool) {
 }
 
 func New() IRemoteStorage {
-	return &RemoteStorage{
+	remoteStorage := &RemoteStorage{
 		auth: &http.BasicAuth{
 			Username: os.Getenv("REALOPEN_GIT_USERNAME"),
 			Password: os.Getenv("REALOPEN_GIT_ACCESS_TOKEN"),
 		},
 	}
+
+	remoteStorage.mysqlDb = mysql.New()
+
+	return remoteStorage
 }

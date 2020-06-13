@@ -2,13 +2,12 @@ package crawler
 
 import (
 	"github.com/gocolly/colly"
-	"github.com/sluggishhackers/realopen.go/models"
-	"github.com/sluggishhackers/realopen.go/statmanager"
-	"github.com/sluggishhackers/realopen.go/store"
+	"github.com/sluggishhackers/go-realopen/statusmanager"
+	"github.com/sluggishhackers/go-realopen/store"
 )
 
 type ICrawler interface {
-	FetchBill(bill *models.Bill)
+	FetchBill(billID string, arg1 string, arg2 string)
 	FetchBills(dateFrom string, dateTo string)
 	NewBillsCrawler() *colly.Collector
 	NewBillCrawler() *colly.Collector
@@ -20,18 +19,16 @@ type Crawler struct {
 	billsCrawler   *colly.Collector
 	downloader     *colly.Collector
 	store          store.IStore
-	statmanager    statmanager.Istatmanager
+	statusmanager  statusmanager.Istatusmanager
 }
 
-func New(s store.IStore, sm statmanager.Istatmanager) ICrawler {
+func New(s store.IStore, sm statusmanager.Istatusmanager) ICrawler {
 	c := &Crawler{
 		defaultCrawler: newDefaultCrawler(),
 		store:          s,
-		statmanager:    sm,
+		statusmanager:  sm,
 	}
-
 	c.billsCrawler = c.NewBillsCrawler()
 	c.billCrawler = c.NewBillCrawler()
-
 	return c
 }

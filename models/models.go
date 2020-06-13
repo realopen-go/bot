@@ -6,11 +6,15 @@ type Bill struct {
 	Status    string `json:"prcsStsNm"` // "통지완료"
 	Requester string `json:"bllrNm"`    // "투명사회를위한정보공개센터"
 
-	ChargeYn        string `json:"chargeYn"`        // "N"
-	ChrgDeptCd      string `json:"chrgDeptCd'`      // "B550021"
-	ChrgDeptFullNm  string `json:"chrgDeptFullNm"`  // "금융감독원"
-	ChrgDeptNm      string `json:"chrgDeptNm"`      // "금융감독원"
-	CprGrpBizrno    string `json:"cprGrpBizrno"`    // "101-80-05483"
+	ChargeYn        string `json:"chargeYn"` // "N"
+	ChkrNmpn        string `json:"chkrNmpn"`
+	ChkrClsfNm      string `json:"chkrClsfNm"`
+	ChrgDeptCd      string `json:"chrgDeptCd'`     // "B550021"
+	ChrgDeptFullNm  string `json:"chrgDeptFullNm"` // "금융감독원"
+	ChrgDeptNm      string `json:"chrgDeptNm"`     // "금융감독원"
+	CprGrpBizrno    string `json:"cprGrpBizrno"`   // "101-80-05483"
+	DrftrNmpn       string `json:"drftrNmpn"`
+	DrftrClsfNm     string `json:"drftrClsfNm"`
 	EndRow          int    `json:"endRow"`          // 0
 	FeeFpyYn        string `json:"feeFpyYn"`        // "Y"
 	FeeSumAmt       string `json:"feeSumAmt"`       // 0
@@ -22,7 +26,10 @@ type Bill struct {
 	NeedCertYn      string `json:"needCertYn"`      // "N"
 	OpenPot         string `json:"openPot"`         // "20.03.03"
 	OpetrNmpn       string `json:"opetrNmpn"`       // "김다혜"
+	OppCn           string `json:"oppCn"`           // ""
 	OppSeCd         string `json:"oppSeCd"`         // "3"
+	OppSeNm         string `json:"oppSeNm"`
+	OppStleSeNm     string `json:"oppStleSeNm"`
 	PrcsDeptCd      string `json:"prcsDeptCd"`      // "B550021"
 	PrcsDeptNm      string `json:"prcsDeptNm"`      // "금융감독원"
 	PrcsDsnTmlmtYmd string `json:"prcsDsnTmlmtYmd"` // "2020.03.04"
@@ -40,10 +47,11 @@ type Bill struct {
 	RqestNstNm      string `json:"rqestNstNm"`      // "금융감독원"
 	RqestPot        string `json:"rqestPot"`        // "2020.02.20"
 	RqestSj         string `json:"rqestSj"`         // "금융 기관의 정보 보안 사고 내역 정보공개 청구"
-	StartRow        int    `json:"startRow"`        // 0
-	TotalCount      int    `json:"totalCount"`      // 0
-	TotalPage       int    `json:"totalPage"`       // 0
-	ViewPage        int    `json:"viewPage"`        // 1
+	RqestInfoDtls   string `json:"rqestInfoDtls"`
+	StartRow        int    `json:"startRow"`   // 0
+	TotalCount      int    `json:"totalCount"` // 0
+	TotalPage       int    `json:"totalPage"`  // 0
+	ViewPage        int    `json:"viewPage"`   // 1
 }
 
 type File struct {

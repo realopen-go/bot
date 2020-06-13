@@ -1,8 +1,9 @@
 package store
 
-import "github.com/sluggishhackers/realopen.go/models"
+import "github.com/sluggishhackers/go-realopen/models"
 
 type IStore interface {
+	ClearBills()
 	GetBill(ID string) *models.Bill
 	GetBills() map[string]*models.Bill
 	SaveBill(b models.Bill)

@@ -1,96 +1,108 @@
 package app
 
 import (
-	"time"
+	"fmt"
 
-	"github.com/jasonlvhit/gocron"
-	"github.com/sluggishhackers/realopen.go/crawler"
-	"github.com/sluggishhackers/realopen.go/rmtstor"
-	"github.com/sluggishhackers/realopen.go/statmanager"
-	"github.com/sluggishhackers/realopen.go/store"
-	"github.com/sluggishhackers/realopen.go/utils/date"
+	"github.com/sluggishhackers/go-realopen/models"
+
+	"github.com/sluggishhackers/go-realopen/crawler"
+	"github.com/sluggishhackers/go-realopen/rmtstor"
+	"github.com/sluggishhackers/go-realopen/statusmanager"
+	"github.com/sluggishhackers/go-realopen/store"
+	"github.com/sluggishhackers/go-realopen/utils/date"
 )
 
 type IApp interface {
-	crawl()
 	DownloadFiles()
 	Initialize()
+	Install()
 	RunDailyCrawler()
-	SyncIndexing(dateFrom string, dateTo string)
 }
 
 type App struct {
 	crawler       crawler.ICrawler
 	remoteStorage rmtstor.IRemoteStorage
 	store         store.IStore
-	statmanager   statmanager.Istatmanager
+	statusmanager statusmanager.Istatusmanager
 }
 
 // 정보공개플랫폼 최초 날짜
 var initialDateFrom = "2003-01-01"
 var initialDateTo = "2003-01-01"
 
-// 1. 어제자 청구 목록 인덱싱
-// 2. 지금껏 인덱싱한 청구 목록 중 아직 공개되지 않은 청구 조회
-func (app *App) crawl() {
-	dateFrom := time.Now().AddDate(0, 0, -2).Format(date.DEFAULT_FORMAT)
-	dateTo := time.Now().AddDate(0, 0, -1).Format(date.DEFAULT_FORMAT)
-
-	// 1. Fetch all bills & Indexing
-	app.SyncIndexing(dateFrom, dateTo)
-
-	// 2. Download Files
-	app.DownloadFiles()
-
-	// 3. Push Git History
-	app.remoteStorage.UploadIndex(false)
-	app.remoteStorage.UploadFiles(false)
-}
-
 func (app *App) DownloadFiles() {
-	app.statmanager.Load()
-
-	bills := app.store.GetBills()
-	for _, b := range bills {
-		app.crawler.FetchBill(b)
-	}
-
-	app.statmanager.Update()
+	//bills := app.store.GetBills()
+	//for _, b := range bills {
+	//	app.crawler.FetchBill(b)
+	//}
 }
 
 func (app *App) Initialize() {
 	app.remoteStorage.Initialize()
-	app.statmanager.Initialize()
+	app.statusmanager.Initialize()
+}
 
-	dateTo := date.Now().Format(date.DEFAULT_FORMAT)
+func (app *App) Install() {
+	// 1. Fetch all bills before
+	targetDate := date.Now().AddDate(0, 0, -1).Format(date.DEFAULT_FORMAT)
+	app.crawler.FetchBills(initialDateFrom, targetDate)
 
-	// 1. Fetch all bills & Indexing
-	app.SyncIndexing(initialDateFrom, dateTo)
+	// 2. Fetch Bills Details
+	for _, b := range app.store.GetBills() {
+		app.crawler.FetchBill(b.ID, b.IfrmpPrcsRstrNo, b.PrcsStsCd)
+	}
 
-	// 2. Download Files
-	app.DownloadFiles()
+	// 8. Create Rows on Database
+	app.remoteStorage.CreateBills(app.store.GetBills())
 
-	// 3. Push Git History
-	app.remoteStorage.UploadIndex(true)
-	app.remoteStorage.UploadFiles(true)
+	// 9. Clear Bills in Store
+	app.store.ClearBills()
 }
 
 func (app *App) RunDailyCrawler() {
-	gocron.Every(1).Day().Do(app.crawl)
+	fmt.Println("Run Daily Crawler")
+
+	// 1. Fetch Old Bills Not Opened
+	oldBills := app.remoteStorage.FetchBillsNotOpened()
+
+	// 2. Crawl Bills only for decided
+	for _, b := range oldBills {
+		app.crawler.FetchBill(b.BillID, b.ProcessorRstrNumber, b.ProcessorStsCd)
+	}
+
+	// 3. Update Bills' Status
+	var updatedBills []*models.Bill
+	for _, b := range app.store.GetBills() {
+		updatedBills = append(updatedBills, b)
+	}
+
+	// 4. Update Rows on Database
+	app.remoteStorage.UpdateBills(updatedBills)
+
+	// 5. Clear Bills in Store
+	app.store.ClearBills()
+
+	// 6. Fetch new bills list
+	targetDate := date.Now().AddDate(0, 0, -1).Format(date.DEFAULT_FORMAT)
+	app.crawler.FetchBills(targetDate, targetDate)
+
+	// 7. Fetch Bills Details
+	for _, b := range app.store.GetBills() {
+		app.crawler.FetchBill(b.ID, b.IfrmpPrcsRstrNo, b.PrcsStsCd)
+	}
+
+	// 8. Create Rows on Database
+	app.remoteStorage.CreateBills(app.store.GetBills())
+
+	// 9. Clear Bills in Store
+	app.store.ClearBills()
 }
 
-func (app *App) SyncIndexing(dateFrom string, dateTo string) {
-	// 💡 정보공개청구플랫폼에서 지원하는 검색시작일자: "2003-01-01"
-	// app.crawler.FetchBills("2003-01-01", date.Now().Format(date.DEFAULT_FORMAT))
-	app.crawler.FetchBills(dateFrom, dateTo)
-	app.statmanager.Indexing(app.store.GetBills())
-}
-
-func New(c crawler.ICrawler, rs rmtstor.IRemoteStorage, s store.IStore, sm statmanager.Istatmanager) IApp {
+func New(c crawler.ICrawler, rs rmtstor.IRemoteStorage, s store.IStore, sm statusmanager.Istatusmanager) IApp {
 	return &App{
 		crawler:       c,
 		remoteStorage: rs,
 		store:         s,
-		statmanager:   sm,
+		statusmanager: sm,
 	}
 }
