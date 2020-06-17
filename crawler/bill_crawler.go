@@ -85,32 +85,31 @@ func (c *Crawler) NewBillCrawler() *colly.Collector {
 
 		c.store.SaveBill(billResultFormat.DtlVo)
 
-		//fileCount := len(billResultFormat.FileList)
-		//ch := make(chan string, fileCount)
+		fileCount := len(billResultFormat.FileList)
+		ch := make(chan string, fileCount)
 
-		//if len(billResultFormat.FileList) > 0 {
-		//	for _, f := range billResultFormat.FileList {
-		//		fmt.Println(fmt.Sprintf("Download : %s", f.UploadFileOrglNm))
-		//		go c.DownloadFile(billResultFormat, f, ch)
-		//	}
-		//	// }(ch)
-		//
-		//	downloadFinishedCount := 0
-		//	for channel := range ch {
-		//		downloadFinishedCount++
-		//
-		//		// Download Message
-		//		fmt.Println(channel)
-		//
-		//		if downloadFinishedCount == fileCount {
-		//			c.statusmanager.SetFileStatus(billID, true)
-		//			close(ch)
-		//		}
-		//	}
-		//} else {
-		//	c.statusmanager.SetFileStatus(billID, false)
-		//	close(ch)
-		//}
+		if len(billResultFormat.FileList) > 0 {
+			for _, f := range billResultFormat.FileList {
+				fmt.Println(fmt.Sprintf("Download : %s", f.UploadFileOrglNm))
+				go c.DownloadFile(billResultFormat, f, ch)
+			}
+
+			downloadFinishedCount := 0
+			for channel := range ch {
+				downloadFinishedCount++
+
+				// Download Message
+				fmt.Println(channel)
+
+				if downloadFinishedCount == fileCount {
+					// c.statusmanager.SetFileStatus(billID, true)
+					close(ch)
+				}
+			}
+		} else {
+			// c.statusmanager.SetFileStatus(billID, false)
+			close(ch)
+		}
 	})
 
 	return crawler

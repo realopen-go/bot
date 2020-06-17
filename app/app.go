@@ -13,7 +13,6 @@ import (
 )
 
 type IApp interface {
-	DownloadFiles()
 	Initialize()
 	Install()
 	RunDailyCrawler()
@@ -29,13 +28,6 @@ type App struct {
 // 정보공개플랫폼 최초 날짜
 var initialDateFrom = "2003-01-01"
 var initialDateTo = "2003-01-01"
-
-func (app *App) DownloadFiles() {
-	//bills := app.store.GetBills()
-	//for _, b := range bills {
-	//	app.crawler.FetchBill(b)
-	//}
-}
 
 func (app *App) Initialize() {
 	app.remoteStorage.Initialize()
@@ -57,6 +49,8 @@ func (app *App) Install() {
 
 	// 9. Clear Bills in Store
 	app.store.ClearBills()
+
+	app.remoteStorage.UploadFiles(true)
 }
 
 func (app *App) RunDailyCrawler() {

@@ -11,6 +11,7 @@ import (
 	"github.com/sluggishhackers/go-realopen/models"
 	"github.com/sluggishhackers/go-realopen/rmtstor/mysql"
 	"github.com/sluggishhackers/go-realopen/utils/date"
+	"golang.org/x/crypto/bcrypt"
 
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -43,7 +44,7 @@ func (rm *RemoteStorage) createBill(bill *models.Bill) {
 		BillID:                    bill.ID,
 		Content:                   bill.OppCn,
 		OpenType:                  bill.OppStleSeNm,
-		OpenStatus:                bill.OppSeNm,
+		OpenStatus:                bill.Status,
 		ProcessorCode:             bill.ChrgDeptCd,
 		ProcessorDepartmentName:   bill.PrcsDeptNm,
 		ProcessorDrafterName:      bill.DrftrNmpn,
@@ -100,16 +101,19 @@ func (rm *RemoteStorage) Initialize() {
 func (rm *RemoteStorage) initializeUser() *mysql.User {
 	username := os.Getenv("REALOPEN_MEMBER_NAME")
 	memberID := os.Getenv("REALOPEN_MEMBER_ID")
+	memberPassword := os.Getenv("REALOPEN_MEMBER_PASSWORD")
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(memberPassword), 10)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	fmt.Println(username)
-	fmt.Println(memberID)
 	if username == "" {
 		log.Fatal("NO USERNAME")
 	}
 	if memberID == "" {
 		log.Fatal("NO MEMBER ID")
 	}
-	createdUser := rm.mysqlDb.FindOrCreateUser(&mysql.User{ID: memberID, Username: username})
+	createdUser := rm.mysqlDb.FindOrCreateUser(&mysql.User{ID: memberID, Password: string(hashedPassword), Username: username})
 	return createdUser
 }
 

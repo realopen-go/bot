@@ -15,6 +15,7 @@ require (
 	github.com/sluggishhackers/realopen.go v0.0.0-20200412092518-441576fbd75a // indirect
 	github.com/spf13/cobra v0.0.7
 	github.com/spf13/viper v1.6.2
+	golang.org/x/crypto v0.0.0-20200311171314-f7b00557c8c4
 	gopkg.in/oleiade/reflections.v1 v1.0.0
 	gopkg.in/src-d/go-git.v4 v4.13.1
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c

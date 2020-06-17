@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/gocolly/colly"
 	"github.com/sluggishhackers/go-realopen/models"
@@ -31,6 +32,7 @@ func NewParamsPostBills(
 	dateFrom string, // 접수일자 시작일
 	dateTo string, // 접수일자 종료일
 	page int,
+	totalPage int,
 ) map[string]string {
 	return map[string]string{
 		"stRceptPot": dateFrom,
@@ -38,9 +40,9 @@ func NewParamsPostBills(
 		"searchYn":   "Y",
 		"chkDate":    "nonClass",
 		"rowPage":    "10",
-		"totalPage":  string(page),
+		"totalPage":  strconv.Itoa(totalPage),
 		"moveStatus": "L",
-		"viewPage":   "1",
+		"viewPage":   strconv.Itoa(page),
 	}
 }
 
@@ -81,16 +83,16 @@ func (c *Crawler) FetchBills(
 			log.Fatal(err)
 		}
 
-		// totalCount := billsCountResultFormat.Result.Vo.TotalCount
-		for i := 0; i < 1; i++ {
-			err = c.billsCrawler.Post("https://www.open.go.kr/pa/billing/openBilling/openBillingSrchList.ajax", NewParamsPostBills(dateFrom, dateTo, i))
+		totalCount := billsCountResultFormat.Result.Vo.TotalCount
+		for i := 1; i <= 3; i++ {
+			err = c.billsCrawler.Post("https://www.open.go.kr/pa/billing/openBilling/openBillingSrchList.ajax", NewParamsPostBills(dateFrom, dateTo, i, totalCount))
 			if err != nil {
 				log.Fatal(err)
 			}
 		}
 	})
 
-	err := totalCountCrawler.Post("https://www.open.go.kr/pa/billing/openBilling/openBillingSrchList.ajax", NewParamsPostBills(dateFrom, dateTo, 0))
+	err := totalCountCrawler.Post("https://www.open.go.kr/pa/billing/openBilling/openBillingSrchList.ajax", NewParamsPostBills(dateFrom, dateTo, 1, 0))
 	if err != nil {
 		log.Fatal(err)
 	}
