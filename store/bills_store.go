@@ -16,6 +16,14 @@ func (store *Store) GetBills() map[string]*models.Bill {
 	return store.bills
 }
 
+func (store *Store) GetFiles() map[string][]models.File {
+	return store.files
+}
+
 func (store *Store) SaveBill(b models.Bill) {
 	store.bills[b.ID] = &b
+}
+
+func (store *Store) SaveFiles(billID string, files []models.File) {
+	store.files[billID] = files
 }

@@ -1,5 +1,7 @@
 package mysql
 
+import "github.com/jinzhu/gorm"
+
 type Bill struct {
 	BillID                    string `gorm:"type:varchar(32);primary_key;unique;not null"` // 접수번호 - RqestNo
 	Content                   string `gorm:"type:text"`                                    // 공개내용 - OppCn
@@ -21,6 +23,13 @@ type Bill struct {
 	User                      User
 }
 
+type File struct {
+	gorm.Model
+	FileName string `gorm:"type:varchar(255);not null"`
+	BillID   string
+	Bill     Bill
+}
+
 type User struct {
 	ID       string `gorm:"type:varchar(128);primary_key;unique;not null"`
 	Username string `gorm:"type:varchar(128);unique;not null"`
@@ -29,6 +38,10 @@ type User struct {
 
 func (Bill) TableName() string {
 	return "bills"
+}
+
+func (File) TableName() string {
+	return "files"
 }
 
 func (User) TableName() string {

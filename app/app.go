@@ -46,6 +46,7 @@ func (app *App) Install() {
 
 	// 8. Create Rows on Database
 	app.remoteStorage.CreateBills(app.store.GetBills())
+	app.remoteStorage.CreateFiles(app.store.GetFiles())
 
 	// 9. Clear Bills in Store
 	app.store.ClearBills()
@@ -87,9 +88,12 @@ func (app *App) RunDailyCrawler() {
 
 	// 8. Create Rows on Database
 	app.remoteStorage.CreateBills(app.store.GetBills())
+	app.remoteStorage.CreateFiles(app.store.GetFiles())
 
 	// 9. Clear Bills in Store
 	app.store.ClearBills()
+
+	fmt.Println("Done to run daily crawler")
 }
 
 func New(c crawler.ICrawler, rs rmtstor.IRemoteStorage, s store.IStore, sm statusmanager.Istatusmanager) IApp {

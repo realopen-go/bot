@@ -25,6 +25,7 @@ var REALOPEN_DATA_REPOSITORY string
 
 type IRemoteStorage interface {
 	CreateBills(bills map[string]*models.Bill)
+	CreateFiles(files map[string][]models.File)
 	FetchBillsNotOpened() []*mysql.Bill
 	Initialize()
 	SyncFilesRepository()
@@ -33,7 +34,7 @@ type IRemoteStorage interface {
 }
 
 type RemoteStorage struct {
-	auth    *http.BasicAuth
+	gitAuth *http.BasicAuth
 	mysqlDb mysql.IMysql
 }
 
@@ -61,14 +62,29 @@ func (rm *RemoteStorage) createBill(bill *models.Bill) {
 	})
 }
 
+func (rm *RemoteStorage) createFile(billID string, file models.File) {
+	rm.mysqlDb.CreateFile(mysql.File{
+		BillID:   billID,
+		FileName: file.UploadFileOrglNm,
+	})
+}
+
 func (rm *RemoteStorage) CreateBills(bills map[string]*models.Bill) {
 	for _, b := range bills {
 		rm.createBill(b)
 	}
 }
 
+func (rm *RemoteStorage) CreateFiles(filesByBillID map[string][]models.File) {
+	for billID, files := range filesByBillID {
+		for _, file := range files {
+			rm.createFile(billID, file)
+		}
+	}
+}
+
 func (rm *RemoteStorage) FetchBillsNotOpened() []*mysql.Bill {
-	return rm.mysqlDb.FetchBills("open_status = ?", "")
+	return rm.mysqlDb.FetchBills("open_status = ?", "처리중")
 }
 
 func (rm *RemoteStorage) Initialize() {
@@ -89,7 +105,7 @@ func (rm *RemoteStorage) Initialize() {
 
 	_, err = git.PlainClone(dataDir, false, &git.CloneOptions{
 		URL:      REALOPEN_DATA_REPOSITORY,
-		Auth:     rm.auth,
+		Auth:     rm.gitAuth,
 		Progress: os.Stdout,
 	})
 	if err != nil {
@@ -129,7 +145,7 @@ func (rm *RemoteStorage) SyncFilesRepository() {
 	}
 
 	err = w.Pull(&git.PullOptions{
-		Auth:     rm.auth,
+		Auth:     rm.gitAuth,
 		Progress: os.Stdout,
 	})
 	if err != nil && !strings.Contains(err.Error(), "already up-to-date") {
@@ -201,7 +217,7 @@ func (rm *RemoteStorage) UploadFiles(init bool) {
 
 	commit, err := w.Commit(commitMsg, &git.CommitOptions{
 		Author: &object.Signature{
-			Name: rm.auth.Username,
+			Name: rm.gitAuth.Username,
 			When: time.Now(),
 		},
 	})
@@ -218,7 +234,7 @@ func (rm *RemoteStorage) UploadFiles(init bool) {
 	fmt.Println(obj)
 
 	err = r.Push(&git.PushOptions{
-		Auth:     rm.auth,
+		Auth:     rm.gitAuth,
 		Progress: os.Stdout,
 	})
 	if err != nil {
@@ -228,14 +244,24 @@ func (rm *RemoteStorage) UploadFiles(init bool) {
 }
 
 func New() IRemoteStorage {
-	remoteStorage := &RemoteStorage{
-		auth: &http.BasicAuth{
-			Username: os.Getenv("REALOPEN_GIT_USERNAME"),
-			Password: os.Getenv("REALOPEN_GIT_ACCESS_TOKEN"),
-		},
+	remoteStorage := &RemoteStorage{}
+
+	remoteStorage.gitAuth = &http.BasicAuth{
+		Username: os.Getenv("REALOPEN_GIT_USERNAME"),
+		Password: os.Getenv("REALOPEN_GIT_ACCESS_TOKEN"),
 	}
 
-	remoteStorage.mysqlDb = mysql.New()
+	Host := os.Getenv("DB_HOST")
+	Database := os.Getenv("DB_DATABASE")
+	Username := os.Getenv("DB_USERNAME")
+	Password := os.Getenv("DB_PASSWORD")
+
+	remoteStorage.mysqlDb = mysql.New(mysql.MysqlConfig{
+		Database: Database,
+		Host:     Host,
+		Password: Password,
+		Username: Username,
+	})
 
 	return remoteStorage
 }

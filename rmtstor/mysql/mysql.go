@@ -1,16 +1,26 @@
 package mysql
 
 import (
+	"fmt"
+
 	"gopkg.in/oleiade/reflections.v1"
 
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 
+type MysqlConfig struct {
+	Database string
+	Host     string
+	Password string
+	Username string
+}
+
 type IMysql interface {
-	Connect()
+	Connect(config MysqlConfig)
 	Close()
 	CreateBill(bill *Bill)
+	CreateFile(file File)
 	CreateUser(user *User)
 	FindOrCreateUser(user *User) *User
 	FetchBills(interface{}, interface{}) []*Bill
@@ -27,8 +37,9 @@ func (db *Mysql) Close() {
 	db.db.Close()
 }
 
-func (db *Mysql) Connect() {
-	_db, err := gorm.Open("mysql", "root:1234@/realopen?charset=utf8&parseTime=True&loc=Local")
+func (db *Mysql) Connect(config MysqlConfig) {
+	args := fmt.Sprintf("%s:%s@(%s)/%s?charset=utf8&parseTime=True&loc=Local", config.Username, config.Password, config.Host, config.Database)
+	_db, err := gorm.Open("mysql", args)
 	if err != nil {
 		panic("failed to connect database")
 	}
@@ -38,6 +49,10 @@ func (db *Mysql) Connect() {
 
 func (db *Mysql) CreateBill(bill *Bill) {
 	db.db.Create(bill)
+}
+
+func (db *Mysql) CreateFile(file File) {
+	db.db.Create(&file)
 }
 
 func (db *Mysql) CreateUser(user *User) {
@@ -82,7 +97,7 @@ func (db *Mysql) FetchUser(query interface{}, args interface{}) *User {
 }
 
 func (db *Mysql) Migrate() {
-	db.db.AutoMigrate(&Bill{}, &User{})
+	db.db.AutoMigrate(&Bill{}, &File{}, &User{})
 }
 
 func (db *Mysql) UpdateBill(where interface{}, args interface{}, bill *Bill) {
@@ -103,9 +118,9 @@ func (db *Mysql) UpdateBill(where interface{}, args interface{}, bill *Bill) {
 	db.db.Save(&billInDb)
 }
 
-func New() IMysql {
+func New(config MysqlConfig) IMysql {
 	mysql := &Mysql{}
-	mysql.Connect()
+	mysql.Connect(config)
 	mysql.Migrate()
 	return mysql
 }

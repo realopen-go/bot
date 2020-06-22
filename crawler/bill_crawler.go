@@ -84,6 +84,7 @@ func (c *Crawler) NewBillCrawler() *colly.Collector {
 		}
 
 		c.store.SaveBill(billResultFormat.DtlVo)
+		c.store.SaveFiles(billResultFormat.DtlVo.ID, billResultFormat.FileList)
 
 		fileCount := len(billResultFormat.FileList)
 		ch := make(chan string, fileCount)
