@@ -44,6 +44,7 @@ func (rm *RemoteStorage) createBill(bill *models.Bill) {
 	rm.mysqlDb.CreateBill(&mysql.Bill{
 		BillID:                    bill.ID,
 		Content:                   bill.OppCn,
+		MultiPrcsYn:               bill.MultiPrcsYn == "N",
 		OpenType:                  bill.OppStleSeNm,
 		OpenStatus:                bill.Status,
 		ProcessorCode:             bill.ChrgDeptCd,
@@ -56,7 +57,7 @@ func (rm *RemoteStorage) createBill(bill *models.Bill) {
 		ProcessorReviewerName:     bill.ChkrNmpn,
 		ProcessorReviewerPosition: bill.ChkrClsfNm,
 		RequestContent:            bill.RqestInfoDtls,
-		RequestDate:               strings.ReplaceAll(bill.RqestPot, ".", "-"),
+		RequestDate:               bill.RqestPot,
 		BillTitle:                 bill.RqestSj,
 		UserID:                    MemberID,
 	})
@@ -117,7 +118,10 @@ func (rm *RemoteStorage) Initialize() {
 func (rm *RemoteStorage) initializeUser() *mysql.User {
 	username := os.Getenv("REALOPEN_MEMBER_NAME")
 	memberID := os.Getenv("REALOPEN_MEMBER_ID")
-	memberPassword := os.Getenv("REALOPEN_MEMBER_PASSWORD")
+	memberPassword := os.Getenv("REALOPEN_PASSWORD")
+
+	fmt.Println("password")
+	fmt.Println(memberPassword)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(memberPassword), 10)
 	if err != nil {
 		log.Fatal(err)
@@ -155,7 +159,7 @@ func (rm *RemoteStorage) SyncFilesRepository() {
 }
 
 func (rm *RemoteStorage) updateBill(bill *models.Bill) {
-	fmt.Printf("Updated: %s\n", bill.ID)
+	// fmt.Printf("Updated: %s\n", bill.ID)
 
 	rm.mysqlDb.UpdateBill("bill_id = ?", bill.ID, &mysql.Bill{
 		BillID:                    bill.ID,
@@ -172,7 +176,7 @@ func (rm *RemoteStorage) updateBill(bill *models.Bill) {
 		ProcessorReviewerName:     bill.ChkrNmpn,
 		ProcessorReviewerPosition: bill.ChkrClsfNm,
 		RequestContent:            bill.RqestInfoDtls,
-		RequestDate:               strings.ReplaceAll(bill.RqestPot, ".", "-"),
+		RequestDate:               bill.RqestPot,
 		BillTitle:                 bill.RqestSj,
 	})
 

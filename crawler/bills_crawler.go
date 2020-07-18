@@ -58,7 +58,7 @@ func (c *Crawler) NewBillsCrawler() *colly.Collector {
 		}
 
 		for _, b := range billListResultFormat.Result.List {
-			fmt.Printf("Save the bill from the list: %s\n", b.ID)
+			// fmt.Printf("Save the bill from the list: %s\n", b.ID)
 			c.store.SaveBill(b)
 		}
 	})
@@ -84,7 +84,7 @@ func (c *Crawler) FetchBills(
 		}
 
 		totalCount := billsCountResultFormat.Result.Vo.TotalCount
-		for i := 1; i <= 3; i++ {
+		for i := 1; i <= 12; i++ {
 			err = c.billsCrawler.Post("https://www.open.go.kr/pa/billing/openBilling/openBillingSrchList.ajax", NewParamsPostBills(dateFrom, dateTo, i, totalCount))
 			if err != nil {
 				log.Fatal(err)

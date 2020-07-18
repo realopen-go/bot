@@ -48,6 +48,9 @@ func (db *Mysql) Connect(config MysqlConfig) {
 }
 
 func (db *Mysql) CreateBill(bill *Bill) {
+	if bill.RequestContent != "" {
+		bill.MultiID = bill.CreateMultiID()
+	}
 	db.db.Create(bill)
 }
 
