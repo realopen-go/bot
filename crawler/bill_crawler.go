@@ -10,6 +10,7 @@ import (
 	"github.com/gocolly/colly"
 	"github.com/sluggishhackers/go-realopen/models"
 	"github.com/sluggishhackers/go-realopen/rmtstor"
+	"github.com/sluggishhackers/go-realopen/utils"
 )
 
 var PROCESSED_HOST = "https://www.open.go.kr/pa/billing/openBilling/openBillingDntcDtl.do"
@@ -22,10 +23,6 @@ type BillResultFormat struct {
 
 type ProcessingBillResultFormat struct {
 	DtlVo models.Bill `json:"dtlVo"`
-}
-
-func makeFileName(filePath string, bill *BillResultFormat, file *models.File) string {
-	return fmt.Sprintf("%s/%s_%s_%s_%s", filePath, bill.DtlVo.IfrmpPrcsRstrNo, bill.DtlVo.PrcsNstNm, strings.Trim(strings.ReplaceAll(bill.DtlVo.PrcsDeptNm, " ", "_"), " "), strings.Trim(strings.ReplaceAll(file.UploadFileOrglNm, " ", "_"), " "))
 }
 
 func NewParamsPostBill(ID string, IfrmpPrcsRstrNo string, PrcsStsCd string) map[string]string {
@@ -42,37 +39,8 @@ func NewParamsPostBill(ID string, IfrmpPrcsRstrNo string, PrcsStsCd string) map[
 
 func (c *Crawler) NewBillCrawler() *colly.Collector {
 	crawler := c.defaultCrawler.Clone()
-	processingCrawler := c.defaultCrawler.Clone()
-	processingCrawler.OnResponse(func(r2 *colly.Response) {
-		body := string(r2.Body)
-		startIndex := strings.Index(body, "var result")
-		endIndex := strings.Index(body, "//var naviInfo")
-		result := body[startIndex:endIndex]
-		data := strings.TrimRight(strings.TrimSpace(result[strings.Index(result, "{"):]), ";")
-
-		billResultFormat := &ProcessingBillResultFormat{}
-
-		err := json.Unmarshal([]byte(data), billResultFormat)
-		if err != nil {
-			fmt.Println("Error to Unmarshall Bill Result Format")
-			log.Fatal(err)
-		}
-
-		// TODO: formatter
-		fmt.Println("Processing Bill")
-		// fmt.Printf("%+v", billResultFormat.DtlVo)
-		billResultFormat.DtlVo.RqestPot = strings.ReplaceAll(billResultFormat.DtlVo.RqestPot, ".", "-")
-
-		c.store.SaveBill(billResultFormat.DtlVo)
-	})
 
 	crawler.OnResponse(func(r *colly.Response) {
-		billID := r.Ctx.Get("billId")
-		ifrmpPrcsRstrNo := r.Ctx.Get("ifrmpPrcsRstrNo")
-		prcsStsCd := r.Ctx.Get("prcsStsCd")
-
-		// fmt.Printf("Fetched: %s\n", billID)
-
 		body := string(r.Body)
 		startIndex := strings.Index(body, "var result")
 		endIndex := strings.Index(body, "//var naviInfo")
@@ -80,7 +48,6 @@ func (c *Crawler) NewBillCrawler() *colly.Collector {
 		// 아직 처리중 단계에서는 청구건 상세페이지가 존재하지 않음
 		if startIndex == -1 || endIndex == -1 {
 			fmt.Println("처리중...")
-			processingCrawler.Post(PROCESSING_HOST, NewParamsPostBill(billID, ifrmpPrcsRstrNo, prcsStsCd))
 		} else {
 			result := body[startIndex:endIndex]
 			data := strings.TrimRight(strings.TrimSpace(result[strings.Index(result, "{"):]), ";")
@@ -117,12 +84,10 @@ func (c *Crawler) NewBillCrawler() *colly.Collector {
 					fmt.Println(channel)
 
 					if downloadFinishedCount == fileCount {
-						// c.statusmanager.SetFileStatus(billID, true)
 						close(ch)
 					}
 				}
 			} else {
-				// c.statusmanager.SetFileStatus(billID, false)
 				close(ch)
 			}
 
@@ -159,15 +124,15 @@ func (c *Crawler) DownloadFile(bill *BillResultFormat, file models.File, ch chan
 			log.Fatal(err)
 		}
 
-		filePath := fmt.Sprintf("%s/%s/%s_%s", wd, rmtstor.REALOPEN_DATA_DIR, bill.DtlVo.RqestPot, strings.Trim(strings.ReplaceAll(bill.DtlVo.RqestSj, " ", "_"), " "))
+		fileDir := fmt.Sprintf("%s/%s/%s", wd, rmtstor.REALOPEN_DATA_DIR, utils.MakeFileDir(&bill.DtlVo))
 
-		err = os.Mkdir(filePath, os.ModePerm)
+		err = os.Mkdir(fileDir, os.ModePerm)
 		if err != nil {
 			fmt.Errorf("😡 Error to create a new directory")
 		}
 
-		fileName := makeFileName(filePath, bill, &file)
-		err = r.Save(fileName)
+		filePath := fmt.Sprintf("%s/%s", fileDir, utils.MakeFileName(&bill.DtlVo, file))
+		err = r.Save(filePath)
 		if err != nil {
 			fmt.Errorf("😡 Error to save a file to download", err)
 			ch <- fmt.Sprintf("Failed: %s", file.UploadFileOrglNm)

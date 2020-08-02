@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"strings"
@@ -53,10 +54,10 @@ type File struct {
 }
 
 type User struct {
-	ID          string `gorm:"type:varchar(128);primary_key;unique;not null"`
-	EmbagoMonth int    `gorm:"type:(255);`
-	Password    string `gorm:"type:varchar(255);`
-	Username    string `gorm:"type:varchar(128);unique;not null"`
+	ID          string        `gorm:"type:varchar(128);primary_key;unique;not null"`
+	EmbagoMonth sql.NullInt64 `gorm:"type:(255);default:NULL`
+	Password    string        `gorm:"type:varchar(255);`
+	Username    string        `gorm:"type:varchar(128);unique;not null"`
 }
 
 func (Bill) TableName() string {

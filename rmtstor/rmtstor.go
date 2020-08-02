@@ -1,6 +1,7 @@
 package rmtstor
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/sluggishhackers/go-realopen/models"
 	"github.com/sluggishhackers/go-realopen/rmtstor/mysql"
+	"github.com/sluggishhackers/go-realopen/utils"
 	"github.com/sluggishhackers/go-realopen/utils/date"
 	"golang.org/x/crypto/bcrypt"
 
@@ -18,17 +20,14 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/transport/http"
 )
 
-var REALOPEN_INDEX_DIR string = ".realopen-index"
-var REALOPEN_DATA_DIR string = ".realopen-data"
-var REALOPEN_INDEX_REPOSITORY string = "https://github.com/sluggishhackers/realopen-index.git"
+var REALOPEN_DATA_DIR string = ".data-repository"
 var REALOPEN_DATA_REPOSITORY string
 
 type IRemoteStorage interface {
 	CreateBills(bills map[string]*models.Bill)
-	CreateFiles(files map[string][]models.File)
+	CreateFiles(bills map[string]*models.Bill, files map[string][]models.File)
 	FetchBillsNotOpened() []*mysql.Bill
 	Initialize()
-	SyncFilesRepository()
 	UpdateBills([]*models.Bill)
 	UploadFiles(bool)
 }
@@ -56,17 +55,17 @@ func (rm *RemoteStorage) createBill(bill *models.Bill) {
 		ProcessorStsCd:            bill.PrcsStsCd,
 		ProcessorReviewerName:     bill.ChkrNmpn,
 		ProcessorReviewerPosition: bill.ChkrClsfNm,
-		RequestContent:            bill.RqestInfoDtls,
+		RequestContent:            strings.TrimSpace(bill.RqestInfoDtls),
 		RequestDate:               bill.RqestPot,
 		BillTitle:                 bill.RqestSj,
 		UserID:                    MemberID,
 	})
 }
 
-func (rm *RemoteStorage) createFile(billID string, file models.File) {
+func (rm *RemoteStorage) createFile(billID string, fileName string) {
 	rm.mysqlDb.CreateFile(mysql.File{
 		BillID:   billID,
-		FileName: file.UploadFileOrglNm,
+		FileName: fileName,
 	})
 }
 
@@ -76,10 +75,11 @@ func (rm *RemoteStorage) CreateBills(bills map[string]*models.Bill) {
 	}
 }
 
-func (rm *RemoteStorage) CreateFiles(filesByBillID map[string][]models.File) {
+func (rm *RemoteStorage) CreateFiles(bills map[string]*models.Bill, filesByBillID map[string][]models.File) {
 	for billID, files := range filesByBillID {
+		bill := bills[billID]
 		for _, file := range files {
-			rm.createFile(billID, file)
+			rm.createFile(billID, utils.MakeFileName(bill, file))
 		}
 	}
 }
@@ -96,6 +96,7 @@ func (rm *RemoteStorage) Initialize() {
 
 	wd, err := os.Getwd()
 	if err != nil {
+		fmt.Println("Error on get working directory data repository")
 		log.Fatal(err)
 	}
 
@@ -104,13 +105,14 @@ func (rm *RemoteStorage) Initialize() {
 	cleanDataDirCmd := exec.Command("rm", "-rf", dataDir)
 	cleanDataDirCmd.Run()
 
+	fmt.Println("before clone")
 	_, err = git.PlainClone(dataDir, false, &git.CloneOptions{
 		URL:      REALOPEN_DATA_REPOSITORY,
 		Auth:     rm.gitAuth,
 		Progress: os.Stdout,
 	})
-	if err != nil {
-		fmt.Errorf("😡 Error to clone REALOPEN_DATA_REPOSITORY", err)
+
+	if err != nil && err.Error() != "remote repository is empty" {
 		log.Fatal(err)
 	}
 }
@@ -120,8 +122,6 @@ func (rm *RemoteStorage) initializeUser() *mysql.User {
 	memberID := os.Getenv("REALOPEN_MEMBER_ID")
 	memberPassword := os.Getenv("REALOPEN_PASSWORD")
 
-	fmt.Println("password")
-	fmt.Println(memberPassword)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(memberPassword), 10)
 	if err != nil {
 		log.Fatal(err)
@@ -133,29 +133,8 @@ func (rm *RemoteStorage) initializeUser() *mysql.User {
 	if memberID == "" {
 		log.Fatal("NO MEMBER ID")
 	}
-	createdUser := rm.mysqlDb.FindOrCreateUser(&mysql.User{ID: memberID, Password: string(hashedPassword), Username: username})
+	createdUser := rm.mysqlDb.FindOrCreateUser(&mysql.User{ID: memberID, EmbagoMonth: sql.NullInt64{}, Password: string(hashedPassword), Username: username})
 	return createdUser
-}
-
-func (rm *RemoteStorage) SyncFilesRepository() {
-	r, err := git.PlainOpen(REALOPEN_INDEX_DIR)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	w, err := r.Worktree()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = w.Pull(&git.PullOptions{
-		Auth:     rm.gitAuth,
-		Progress: os.Stdout,
-	})
-	if err != nil && !strings.Contains(err.Error(), "already up-to-date") {
-		fmt.Println("Failed to git pull - data repository")
-		log.Fatal(err)
-	}
 }
 
 func (rm *RemoteStorage) updateBill(bill *models.Bill) {
@@ -175,7 +154,7 @@ func (rm *RemoteStorage) updateBill(bill *models.Bill) {
 		ProcessorStsCd:            bill.PrcsStsCd,
 		ProcessorReviewerName:     bill.ChkrNmpn,
 		ProcessorReviewerPosition: bill.ChkrClsfNm,
-		RequestContent:            bill.RqestInfoDtls,
+		RequestContent:            strings.TrimSpace(bill.RqestInfoDtls),
 		RequestDate:               bill.RqestPot,
 		BillTitle:                 bill.RqestSj,
 	})
@@ -208,13 +187,13 @@ func (rm *RemoteStorage) UploadFiles(init bool) {
 
 	_, err = w.Add(".")
 	if err != nil {
-		fmt.Println("Failed to add")
+		fmt.Println("Error on git add data repository")
 		log.Fatal(err)
 	}
 
 	status, err := w.Status()
 	if err != nil {
-		fmt.Println("Failed to status")
+		fmt.Println("Error on git status data repository")
 		log.Fatal(err)
 	}
 	fmt.Println(status)
@@ -225,15 +204,18 @@ func (rm *RemoteStorage) UploadFiles(init bool) {
 			When: time.Now(),
 		},
 	})
+
 	if err != nil {
+		fmt.Println("Error on git commit data repository")
 		log.Fatal(err)
 	}
 
 	obj, err := r.CommitObject(commit)
 	if err != nil {
-		fmt.Println("Failed to commit")
+		fmt.Println("Error on git commit object data repository")
 		log.Fatal(err)
 	}
+
 	fmt.Println("Data Repository Commit: ")
 	fmt.Println(obj)
 
@@ -241,9 +223,12 @@ func (rm *RemoteStorage) UploadFiles(init bool) {
 		Auth:     rm.gitAuth,
 		Progress: os.Stdout,
 	})
+
 	if err != nil {
+		fmt.Println("Error on git push data repository")
 		log.Fatal(err)
 	}
+
 	fmt.Println("Done: Push Data")
 }
 

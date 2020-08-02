@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"github.com/jasonlvhit/gocron"
 	"github.com/spf13/cobra"
 
 	"github.com/sluggishhackers/go-realopen/app"
@@ -22,6 +21,5 @@ var runCmd = &cobra.Command{
 		newApp := app.New(c, rs, store, sm)
 
 		newApp.RunDailyCrawler()
-		<-gocron.Start()
 	},
 }

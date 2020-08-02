@@ -3,6 +3,7 @@ package crawler
 import (
 	"log"
 	"os"
+	"time"
 
 	b64 "encoding/base64"
 
@@ -16,6 +17,8 @@ func newDefaultCrawler() *colly.Collector {
 	encodedPWD := b64.StdEncoding.EncodeToString([]byte(decodedPWD))
 	c := colly.NewCollector()
 
+	timeout, _ := time.ParseDuration("1m")
+	c.SetRequestTimeout(timeout)
 	err := c.Post("https://www.open.go.kr/pa/member/openLogin/ajaxSessionCheck.ajax", map[string]string{"redirectUrl": "/pa/member/openLogin/memberLogin.ajax"})
 	if err != nil {
 		log.Fatal(err)

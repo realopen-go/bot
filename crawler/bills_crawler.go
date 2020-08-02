@@ -80,11 +80,12 @@ func (c *Crawler) FetchBills(
 
 		err := json.Unmarshal(r.Body, billsCountResultFormat)
 		if err != nil {
+			fmt.Println("Error to unmarshal total bills count result response")
 			log.Fatal(err)
 		}
 
 		totalCount := billsCountResultFormat.Result.Vo.TotalCount
-		for i := 1; i <= 12; i++ {
+		for i := 1; i <= totalCount; i++ {
 			err = c.billsCrawler.Post("https://www.open.go.kr/pa/billing/openBilling/openBillingSrchList.ajax", NewParamsPostBills(dateFrom, dateTo, i, totalCount))
 			if err != nil {
 				log.Fatal(err)
